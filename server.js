@@ -1,23 +1,41 @@
 const express = require('express');
 const sharp = require('sharp');
 const path = require('path');
-const app = express();
+const fs = require('fs');
 
+const app = express();
 const port = process.env.PORT || 3000;
+
+const imagePath = path.join(__dirname, 'mapa_renderizado.png');
+
+// Pre-carrega a imagem e os metadados em RAM ao iniciar a aplicação
+let baseImageBuffer = null;
+let width = 0;
+let height = 0;
+
+async function initMap() {
+    try {
+        baseImageBuffer = fs.readFileSync(imagePath);
+        const metadata = await sharp(baseImageBuffer).metadata();
+        width = metadata.width;
+        height = metadata.height;
+        console.log(`[Radar] Mapa base carregado em memória (${width}x${height}px)`);
+    } catch (err) {
+        console.error('[Radar] Erro fatal ao carregar mapa base:', err);
+    }
+}
+initMap();
 
 app.get('/mapa.png', async (req, res) => {
     try {
-        const imagePath = path.join(__dirname, 'mapa_renderizado.png');
+        if (!baseImageBuffer) {
+            return res.status(500).send('Mapa base ainda não carregou');
+        }
+
         const playersParam = req.query.p;
-
-        const metadata = await sharp(imagePath).metadata();
-        const width = metadata.width;
-        const height = metadata.height;
-
         let circlesSvg = '';
 
         if (playersParam) {
-            // Formato recebido: 2900_5107-X_Z
             const players = String(playersParam).split('-');
             players.forEach(p => {
                 const coords = p.split('_').map(Number);
@@ -39,9 +57,10 @@ app.get('/mapa.png', async (req, res) => {
             </svg>
         `);
 
-        const outputBuffer = await sharp(imagePath)
+        // Otimizado com compressionLevel: 1 e effort: 1 para resposta instantânea
+        const outputBuffer = await sharp(baseImageBuffer)
             .composite([{ input: svgOverlay, top: 0, left: 0 }])
-            .png()
+            .png({ compressionLevel: 1, effort: 1 })
             .toBuffer();
 
         res.setHeader('Content-Type', 'image/png');
