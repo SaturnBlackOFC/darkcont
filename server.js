@@ -14,7 +14,7 @@ app.get('/', async (req, res) => {
         const width = metadata.width;
         const height = metadata.height;
 
-        // Limites calibrados para Roma (X: 2930, Z: 5172)
+        // Limites do mapa (X: -2000 a 3800 | Z: -2000 a 6500)
         const minX = -2000, maxX = 3800;
         const minZ = -2000, maxZ = 6500;
 
@@ -22,7 +22,6 @@ app.get('/', async (req, res) => {
 
         if (playersParam) {
             playersParam = decodeURIComponent(playersParam);
-            // Aceita separadores por | ou ;
             const players = playersParam.split(/[;|]/);
 
             players.forEach(p => {
@@ -35,8 +34,8 @@ app.get('/', async (req, res) => {
                     const pz = Math.round(((z - minZ) / (maxZ - minZ)) * height);
 
                     circlesSvg += `
-                        <circle cx="${px}" cy="${pz}" r="24" fill="white" stroke="black" stroke-width="4" />
-                        <circle cx="${px}" cy="${pz}" r="15" fill="red" />
+                        <circle cx="${px}" cy="${pz}" r="28" fill="white" stroke="black" stroke-width="4" />
+                        <circle cx="${px}" cy="${pz}" r="18" fill="red" />
                     `;
                 }
             });
