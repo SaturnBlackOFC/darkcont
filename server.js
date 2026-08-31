@@ -1,5 +1,5 @@
 const express = require('express');
-const Jimp = require('jimp');
+const sharp = require('sharp');
 const path = require('path');
 const app = express();
 
@@ -8,71 +8,59 @@ const port = process.env.PORT || 3000;
 app.get('/', async (req, res) => {
     try {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
-        let playersParam = req.query.players;
+        const playersParam = req.query.players;
 
+        // Se não houver parâmetro de jogadores, entrega a imagem limpa imediatamente
         if (!playersParam) {
             return res.sendFile(imagePath);
         }
 
-        playersParam = decodeURIComponent(playersParam);
-        const image = await Jimp.read(imagePath);
+        const metadata = await sharp(imagePath).metadata();
+        const width = metadata.width;
+        const height = metadata.height;
 
-        const width = image.bitmap.width;
-        const height = image.bitmap.height;
-
-        // Limites do mapa no Minecraft
+        // Limites de coordenadas do mundo no Minecraft
         const minX = -3712, maxX = 3712;
         const minZ = -4032, maxZ = 8064;
 
-        // Raio dinâmico para a marcação
-        const radius = Math.max(14, Math.round(width * 0.015));
-
-        // Aceita separadores ; ou |
-        const players = playersParam.split(/[;|]/);
+        const players = decodeURIComponent(playersParam).split(/[;|]/);
+        let circlesSvg = '';
 
         players.forEach(p => {
-            const coords = p.split(',').map(Number);
-            if (coords.length >= 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
-                const x = coords[0];
-                const z = coords[1];
+            const [x, z] = p.split(',').map(Number);
+            if (!isNaN(x) && !isNaN(z)) {
+                // Cálculo de posição relativa na imagem
+                const px = ((x - minX) / (maxX - minX)) * width;
+                const pz = ((z - minZ) / (maxZ - minZ)) * height;
 
-                const relX = (x - minX) / (maxX - minX);
-                const relZ = (z - minZ) / (maxZ - minZ);
-
-                const px = Math.round(relX * width);
-                const pz = Math.round(relZ * height);
-
-                // Desenha o círculo (borda branca e centro vermelho)
-                for (let dx = -radius; dx <= radius; dx++) {
-                    for (let dz = -radius; dz <= radius; dz++) {
-                        const distSq = dx * dx + dz * dz;
-                        const targetX = px + dx;
-                        const targetY = pz + dz;
-
-                        if (targetX >= 0 && targetX < width && targetY >= 0 && targetY < height) {
-                            if (distSq <= radius * radius) {
-                                if (distSq <= (radius * 0.55) * (radius * 0.55)) {
-                                    // Ponto interno Vermelho
-                                    image.setPixelColor(Jimp.rgbaToInt(255, 0, 0, 255), targetX, targetY);
-                                } else {
-                                    // Borda externa Branca
-                                    image.setPixelColor(Jimp.rgbaToInt(255, 255, 255, 255), targetX, targetY);
-                                }
-                            }
-                        }
-                    }
-                }
+                // Desenha a marcação usando vetor SVG ultra-rápido
+                circlesSvg += `
+                    <circle cx="${px}" cy="${pz}" r="22" fill="white" stroke="black" stroke-width="4" />
+                    <circle cx="${px}" cy="${pz}" r="14" fill="red" />
+                `;
             }
         });
 
-        const buffer = await image.getBufferAsync(Jimp.MIME_PNG);
+        // Cria a camada transparente com as bolinhas
+        const svgOverlay = Buffer.from(`
+            <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+                ${circlesSvg}
+            </svg>
+        `);
+
+        // Funde a camada SVG sobre o mapa de forma instantânea
+        const outputBuffer = await sharp(imagePath)
+            .composite([{ input: svgOverlay, top: 0, left: 0 }])
+            .png()
+            .toBuffer();
+
         res.setHeader('Content-Type', 'image/png');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.send(buffer);
+        res.send(outputBuffer);
 
     } catch (err) {
-        console.error('Erro ao processar imagem:', err);
-        res.sendFile(path.join(__dirname, 'mapa_renderizado.png'));
+        console.error('Erro ao renderizar mapa:', err);
+        res.status(500).send(`Erro: ${err.message}`);
     }
 });
 
