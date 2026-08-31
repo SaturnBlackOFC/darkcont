@@ -5,7 +5,8 @@ const app = express();
 
 const port = process.env.PORT || 3000;
 
-app.get('/', async (req, res) => {
+// O Discord exige uma extensão .png na URL para não usar cache forçado
+app.get('/mapa.png', async (req, res) => {
     try {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
         let playersParam = req.query.players;
@@ -14,15 +15,14 @@ app.get('/', async (req, res) => {
         const width = metadata.width;
         const height = metadata.height;
 
-        // Limites do mapa (X: -2000 a 3800 | Z: -2000 a 6500)
         const minX = -2000, maxX = 3800;
         const minZ = -2000, maxZ = 6500;
 
         let circlesSvg = '';
 
         if (playersParam) {
-            playersParam = decodeURIComponent(playersParam);
-            const players = playersParam.split(/[;|]/);
+            // O Express já decodifica a URL nativamente, mas garantimos a string aqui
+            const players = String(playersParam).split(/[;|]/);
 
             players.forEach(p => {
                 const coords = p.split(',').map(Number);
