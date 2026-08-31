@@ -22,6 +22,7 @@ app.get('/', async (req, res) => {
 
         if (playersParam) {
             playersParam = decodeURIComponent(playersParam);
+            // Aceita separadores por | ou ;
             const players = playersParam.split(/[;|]/);
 
             players.forEach(p => {
@@ -34,8 +35,8 @@ app.get('/', async (req, res) => {
                     const pz = Math.round(((z - minZ) / (maxZ - minZ)) * height);
 
                     circlesSvg += `
-                        <circle cx="${px}" cy="${pz}" r="22" fill="white" stroke="black" stroke-width="4" />
-                        <circle cx="${px}" cy="${pz}" r="14" fill="red" />
+                        <circle cx="${px}" cy="${pz}" r="24" fill="white" stroke="black" stroke-width="4" />
+                        <circle cx="${px}" cy="${pz}" r="15" fill="red" />
                     `;
                 }
             });
