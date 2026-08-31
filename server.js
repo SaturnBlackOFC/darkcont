@@ -1,5 +1,5 @@
 const express = require('express');
-const { createCanvas, loadImage } = require('canvas');
+const Jimp = require('jimp');
 const path = require('path');
 const app = express();
 
@@ -15,19 +15,21 @@ app.get('/', async (req, res) => {
         }
 
         playersParam = decodeURIComponent(playersParam);
-        const img = await loadImage(imagePath);
-        const canvas = createCanvas(img.width, img.height);
-        const ctx = canvas.getContext('2d');
+        const image = await Jimp.read(imagePath);
 
-        ctx.drawImage(img, 0, 0);
+        const width = image.bitmap.width;
+        const height = image.bitmap.height;
 
+        // Limites do mapa no Minecraft
         const minX = -3712, maxX = 3712;
         const minZ = -4032, maxZ = 8064;
 
-        const outerRadius = Math.max(15, Math.round(img.width * 0.015));
-        const innerRadius = Math.max(8, Math.round(img.width * 0.009));
+        // Raio dinâmico para a marcação
+        const radius = Math.max(14, Math.round(width * 0.015));
 
-        const players = playersParam.split(';');
+        // Aceita separadores ; ou |
+        const players = playersParam.split(/[;|]/);
+
         players.forEach(p => {
             const coords = p.split(',').map(Number);
             if (coords.length >= 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
@@ -37,33 +39,40 @@ app.get('/', async (req, res) => {
                 const relX = (x - minX) / (maxX - minX);
                 const relZ = (z - minZ) / (maxZ - minZ);
 
-                const px = relX * img.width;
-                const pz = relZ * img.height;
+                const px = Math.round(relX * width);
+                const pz = Math.round(relZ * height);
 
-                ctx.beginPath();
-                ctx.arc(px, pz, outerRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = 'white';
-                ctx.fill();
-                ctx.lineWidth = 3;
-                ctx.strokeStyle = 'black';
-                ctx.stroke();
+                // Desenha o círculo (borda branca e centro vermelho)
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dz = -radius; dz <= radius; dz++) {
+                        const distSq = dx * dx + dz * dz;
+                        const targetX = px + dx;
+                        const targetY = pz + dz;
 
-                ctx.beginPath();
-                ctx.arc(px, pz, innerRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = 'red';
-                ctx.fill();
+                        if (targetX >= 0 && targetX < width && targetY >= 0 && targetY < height) {
+                            if (distSq <= radius * radius) {
+                                if (distSq <= (radius * 0.55) * (radius * 0.55)) {
+                                    // Ponto interno Vermelho
+                                    image.setPixelColor(Jimp.rgbaToInt(255, 0, 0, 255), targetX, targetY);
+                                } else {
+                                    // Borda externa Branca
+                                    image.setPixelColor(Jimp.rgbaToInt(255, 255, 255, 255), targetX, targetY);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         });
 
-        const buffer = canvas.toBuffer('image/png');
+        const buffer = await image.getBufferAsync(Jimp.MIME_PNG);
         res.setHeader('Content-Type', 'image/png');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.send(buffer);
-        
+
     } catch (err) {
-        // Agora o servidor não esconde mais o erro. Ele vai imprimir na tela o que deu errado.
-        console.error('Erro:', err);
-        res.status(500).send(`Erro interno ao renderizar mapa: ${err.message}`);
+        console.error('Erro ao processar imagem:', err);
+        res.sendFile(path.join(__dirname, 'mapa_renderizado.png'));
     }
 });
 
