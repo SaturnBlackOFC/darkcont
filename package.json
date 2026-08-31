@@ -1,13 +1,9 @@
 {
-  "name": "meu-mapa-minecraft",
+  "name": "radar-render",
   "version": "1.0.0",
-  "description": "Servidor web para exibir o mapa do PocketMine",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
   "dependencies": {
     "express": "^4.18.2",
-    "canvas": "^2.11.2"
+    "jimp": "^0.22.10"
   }
 }
