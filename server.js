@@ -62,3 +62,31 @@ app.get('/', async (req, res) => {
 app.listen(port, () => {
     console.log(`Servidor rodando na porta ${port}`);
 });
+                const px = relX * img.width;
+                const pz = relZ * img.height;
+
+                // Círculo externo (Branco)
+                ctx.beginPath();
+                ctx.arc(px, pz, 12, 0, 2 * Math.PI);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+
+                // Círculo interno (Vermelho)
+                ctx.beginPath();
+                ctx.arc(px, pz, 8, 0, 2 * Math.PI);
+                ctx.fillStyle = 'red';
+                ctx.fill();
+            }
+        });
+
+        res.setHeader('Content-Type', 'image/png');
+        canvas.createPNGStream().pipe(res);
+    } catch (err) {
+        console.error(err);
+        res.sendFile(path.join(__dirname, 'mapa_renderizado.png'));
+    }
+});
+
+app.listen(port, () => {
+    console.log(`Servidor rodando na porta ${port}`);
+});
