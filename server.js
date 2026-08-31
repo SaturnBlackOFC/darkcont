@@ -8,35 +8,38 @@ const port = process.env.PORT || 3000;
 app.get('/', async (req, res) => {
     try {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
-        const playersParam = req.query.players;
-
-        if (!playersParam) {
-            return res.sendFile(imagePath);
-        }
+        let playersParam = req.query.players;
 
         const metadata = await sharp(imagePath).metadata();
         const width = metadata.width;
         const height = metadata.height;
 
-        // Limites calibrados para que X: 2930 e Z: 5172 caiam bem em cima de Roma (Itália)
+        // Limites calibrados para Roma (X: 2930, Z: 5172)
         const minX = -2000, maxX = 3800;
         const minZ = -2000, maxZ = 6500;
 
-        const players = decodeURIComponent(playersParam).split(/[;|]/);
         let circlesSvg = '';
 
-        players.forEach(p => {
-            const [x, z] = p.split(',').map(Number);
-            if (!isNaN(x) && !isNaN(z)) {
-                const px = Math.round(((x - minX) / (maxX - minX)) * width);
-                const pz = Math.round(((z - minZ) / (maxZ - minZ)) * height);
+        if (playersParam) {
+            playersParam = decodeURIComponent(playersParam);
+            const players = playersParam.split(/[;|]/);
 
-                circlesSvg += `
-                    <circle cx="${px}" cy="${pz}" r="22" fill="white" stroke="black" stroke-width="4" />
-                    <circle cx="${px}" cy="${pz}" r="14" fill="red" />
-                `;
-            }
-        });
+            players.forEach(p => {
+                const coords = p.split(',').map(Number);
+                if (coords.length >= 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                    const x = coords[0];
+                    const z = coords[1];
+
+                    const px = Math.round(((x - minX) / (maxX - minX)) * width);
+                    const pz = Math.round(((z - minZ) / (maxZ - minZ)) * height);
+
+                    circlesSvg += `
+                        <circle cx="${px}" cy="${pz}" r="22" fill="white" stroke="black" stroke-width="4" />
+                        <circle cx="${px}" cy="${pz}" r="14" fill="red" />
+                    `;
+                }
+            });
+        }
 
         const svgOverlay = Buffer.from(`
             <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
