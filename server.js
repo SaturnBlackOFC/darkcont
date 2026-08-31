@@ -8,81 +8,68 @@ const port = process.env.PORT || 3000;
 app.get('/', async (req, res) => {
     try {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
-        const playersParam = req.query.players;
+        let playersParam = req.query.players;
 
         // Se não houver jogadores na query, envia a imagem limpa
         if (!playersParam) {
             return res.sendFile(imagePath);
         }
 
+        // Trata caracteres especiais de URL (como o caractere '|')
+        playersParam = decodeURIComponent(playersParam);
+
         const img = await loadImage(imagePath);
         const canvas = createCanvas(img.width, img.height);
         const ctx = canvas.getContext('2d');
 
-        // Desenha a imagem de fundo
+        // Desenha o mapa de fundo
         ctx.drawImage(img, 0, 0);
 
-        // Coordenadas dos limites do mapa
+        // Limites do mapa no Minecraft
         const minX = -3712, maxX = 3712;
         const minZ = -4032, maxZ = 8064;
 
-        // Desenha cada jogador enviado na URL (formato: X,Z|X,Z)
+        // Calcula um raio proporcional à resolução da imagem para a bola não sumir no Discord
+        const outerRadius = Math.max(30, Math.round(img.width * 0.015));
+        const innerRadius = Math.max(18, Math.round(img.width * 0.009));
+
         const players = playersParam.split('|');
         players.forEach(p => {
-            const [x, z] = p.split(',').map(Number);
-            if (!isNaN(x) && !isNaN(z)) {
+            const coords = p.split(',').map(Number);
+            if (coords.length >= 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                const x = coords[0];
+                const z = coords[1];
+
                 const relX = (x - minX) / (maxX - minX);
                 const relZ = (z - minZ) / (maxZ - minZ);
 
                 const px = relX * img.width;
                 const pz = relZ * img.height;
 
-                // Círculo externo (Branco)
+                // Círculo Externo (Branco com borda preta)
                 ctx.beginPath();
-                ctx.arc(px, pz, 12, 0, 2 * Math.PI);
+                ctx.arc(px, pz, outerRadius, 0, 2 * Math.PI);
                 ctx.fillStyle = 'white';
                 ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'black';
+                ctx.stroke();
 
-                // Círculo interno (Vermelho)
+                // Círculo Interno (Vermelho)
                 ctx.beginPath();
-                ctx.arc(px, pz, 8, 0, 2 * Math.PI);
+                ctx.arc(px, pz, innerRadius, 0, 2 * Math.PI);
                 ctx.fillStyle = 'red';
                 ctx.fill();
             }
         });
 
+        // Envia como Buffer binário direto para evitar quebra de stream no Express
+        const buffer = canvas.toBuffer('image/png');
         res.setHeader('Content-Type', 'image/png');
-        canvas.createPNGStream().pipe(res);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.send(buffer);
     } catch (err) {
-        console.error(err);
-        res.sendFile(path.join(__dirname, 'mapa_renderizado.png'));
-    }
-});
-
-app.listen(port, () => {
-    console.log(`Servidor rodando na porta ${port}`);
-});
-                const px = relX * img.width;
-                const pz = relZ * img.height;
-
-                // Círculo externo (Branco)
-                ctx.beginPath();
-                ctx.arc(px, pz, 12, 0, 2 * Math.PI);
-                ctx.fillStyle = 'white';
-                ctx.fill();
-
-                // Círculo interno (Vermelho)
-                ctx.beginPath();
-                ctx.arc(px, pz, 8, 0, 2 * Math.PI);
-                ctx.fillStyle = 'red';
-                ctx.fill();
-            }
-        });
-
-        res.setHeader('Content-Type', 'image/png');
-        canvas.createPNGStream().pipe(res);
-    } catch (err) {
-        console.error(err);
+        console.error('Erro na renderização do mapa:', err);
         res.sendFile(path.join(__dirname, 'mapa_renderizado.png'));
     }
 });
