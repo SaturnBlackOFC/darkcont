@@ -10,7 +10,6 @@ app.get('/', async (req, res) => {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
         const playersParam = req.query.players;
 
-        // Se não houver parâmetro de jogadores, entrega a imagem limpa imediatamente
         if (!playersParam) {
             return res.sendFile(imagePath);
         }
@@ -19,9 +18,9 @@ app.get('/', async (req, res) => {
         const width = metadata.width;
         const height = metadata.height;
 
-        // Limites de coordenadas do mundo no Minecraft
-        const minX = -3712, maxX = 3712;
-        const minZ = -4032, maxZ = 8064;
+        // Limites calibrados para que X: 2930 e Z: 5172 caiam bem em cima de Roma (Itália)
+        const minX = -2000, maxX = 3800;
+        const minZ = -2000, maxZ = 6500;
 
         const players = decodeURIComponent(playersParam).split(/[;|]/);
         let circlesSvg = '';
@@ -29,11 +28,9 @@ app.get('/', async (req, res) => {
         players.forEach(p => {
             const [x, z] = p.split(',').map(Number);
             if (!isNaN(x) && !isNaN(z)) {
-                // Cálculo de posição relativa na imagem
-                const px = ((x - minX) / (maxX - minX)) * width;
-                const pz = ((z - minZ) / (maxZ - minZ)) * height;
+                const px = Math.round(((x - minX) / (maxX - minX)) * width);
+                const pz = Math.round(((z - minZ) / (maxZ - minZ)) * height);
 
-                // Desenha a marcação usando vetor SVG ultra-rápido
                 circlesSvg += `
                     <circle cx="${px}" cy="${pz}" r="22" fill="white" stroke="black" stroke-width="4" />
                     <circle cx="${px}" cy="${pz}" r="14" fill="red" />
@@ -41,26 +38,26 @@ app.get('/', async (req, res) => {
             }
         });
 
-        // Cria a camada transparente com as bolinhas
         const svgOverlay = Buffer.from(`
-            <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
                 ${circlesSvg}
             </svg>
         `);
 
-        // Funde a camada SVG sobre o mapa de forma instantânea
         const outputBuffer = await sharp(imagePath)
             .composite([{ input: svgOverlay, top: 0, left: 0 }])
             .png()
             .toBuffer();
 
         res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.send(outputBuffer);
 
     } catch (err) {
         console.error('Erro ao renderizar mapa:', err);
-        res.status(500).send(`Erro: ${err.message}`);
+        res.status(500).send(`Erro interno: ${err.message}`);
     }
 });
 
