@@ -5,8 +5,7 @@ const app = express();
 
 const port = process.env.PORT || 3000;
 
-// O Discord exige uma extensão .png na URL para não usar cache forçado
-app.get('/mapa.png', async (req, res) => {
+const renderMap = async (req, res) => {
     try {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
         let playersParam = req.query.players;
@@ -21,8 +20,9 @@ app.get('/mapa.png', async (req, res) => {
         let circlesSvg = '';
 
         if (playersParam) {
-            // O Express já decodifica a URL nativamente, mas garantimos a string aqui
-            const players = String(playersParam).split(/[;|]/);
+            // Decodifica a string caso venha com %7C ou barras puras
+            playersParam = decodeURIComponent(String(playersParam));
+            const players = playersParam.split(/[;|]/);
 
             players.forEach(p => {
                 const coords = p.split(',').map(Number);
@@ -62,7 +62,10 @@ app.get('/mapa.png', async (req, res) => {
         console.error('Erro ao renderizar mapa:', err);
         res.status(500).send(`Erro interno: ${err.message}`);
     }
-});
+};
+
+app.get('/', renderMap);
+app.get('/mapa.png', renderMap);
 
 app.listen(port, () => {
     console.log(`Servidor rodando na porta ${port}`);
