@@ -5,34 +5,26 @@ const app = express();
 
 const port = process.env.PORT || 3000;
 
-// Rota dinâmica que lê os dados diretamente do caminho do arquivo
-app.get(['/mapa/:coords/mapa.png', '/mapa.png', '/'], async (req, res) => {
+app.get('/mapa.png', async (req, res) => {
     try {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
-        const rawCoords = req.params.coords || req.query.players;
+        const playersParam = req.query.p;
 
         const metadata = await sharp(imagePath).metadata();
         const width = metadata.width;
         const height = metadata.height;
 
-        const minX = -2000, maxX = 3800;
-        const minZ = -2000, maxZ = 6500;
-
         let circlesSvg = '';
 
-        if (rawCoords) {
-            // Aceita coordenadas separadas por hifen, pipeline ou virgula
-            const playerEntries = String(rawCoords).split(/[-|;]/);
-
-            playerEntries.forEach(entry => {
-                const coords = entry.split(/[,_]/).map(Number);
-                if (coords.length >= 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
-                    const x = coords[0];
-                    const z = coords[1];
-
-                    const px = Math.round(((x - minX) / (maxX - minX)) * width);
-                    const pz = Math.round(((z - minZ) / (maxZ - minZ)) * height);
-
+        if (playersParam) {
+            // Formato recebido: 2900_5107-X_Z
+            const players = String(playersParam).split('-');
+            players.forEach(p => {
+                const coords = p.split('_').map(Number);
+                if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                    const px = Math.round(((coords[0] - (-2000)) / 5800) * width);
+                    const pz = Math.round(((coords[1] - (-2000)) / 8500) * height);
+                    
                     circlesSvg += `
                         <circle cx="${px}" cy="${pz}" r="28" fill="white" stroke="black" stroke-width="4" />
                         <circle cx="${px}" cy="${pz}" r="18" fill="red" />
@@ -59,11 +51,9 @@ app.get(['/mapa/:coords/mapa.png', '/mapa.png', '/'], async (req, res) => {
         res.send(outputBuffer);
 
     } catch (err) {
-        console.error('Erro ao renderizar mapa:', err);
-        res.status(500).send(`Erro interno: ${err.message}`);
+        console.error('Erro ao renderizar:', err);
+        res.status(500).send('Erro interno');
     }
 });
 
-app.listen(port, () => {
-    console.log(`Servidor rodando na porta ${port}`);
-});
+app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
