@@ -5,10 +5,11 @@ const app = express();
 
 const port = process.env.PORT || 3000;
 
-const renderMap = async (req, res) => {
+// Rota dinâmica que lê os dados diretamente do caminho do arquivo
+app.get(['/mapa/:coords/mapa.png', '/mapa.png', '/'], async (req, res) => {
     try {
         const imagePath = path.join(__dirname, 'mapa_renderizado.png');
-        let playersParam = req.query.players;
+        const rawCoords = req.params.coords || req.query.players;
 
         const metadata = await sharp(imagePath).metadata();
         const width = metadata.width;
@@ -19,13 +20,12 @@ const renderMap = async (req, res) => {
 
         let circlesSvg = '';
 
-        if (playersParam) {
-            // Decodifica a string caso venha com %7C ou barras puras
-            playersParam = decodeURIComponent(String(playersParam));
-            const players = playersParam.split(/[;|]/);
+        if (rawCoords) {
+            // Aceita coordenadas separadas por hifen, pipeline ou virgula
+            const playerEntries = String(rawCoords).split(/[-|;]/);
 
-            players.forEach(p => {
-                const coords = p.split(',').map(Number);
+            playerEntries.forEach(entry => {
+                const coords = entry.split(/[,_]/).map(Number);
                 if (coords.length >= 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
                     const x = coords[0];
                     const z = coords[1];
@@ -62,10 +62,7 @@ const renderMap = async (req, res) => {
         console.error('Erro ao renderizar mapa:', err);
         res.status(500).send(`Erro interno: ${err.message}`);
     }
-};
-
-app.get('/', renderMap);
-app.get('/mapa.png', renderMap);
+});
 
 app.listen(port, () => {
     console.log(`Servidor rodando na porta ${port}`);
